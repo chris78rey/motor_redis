@@ -1,0 +1,18 @@
+[Unit]
+Description=Worker de caché DIGITALIZACION (%i)
+After=redis-server.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/data_nuevo/motor_redis
+Environment="JAVA_TOOL_OPTIONS=-Doracle.jdbc.timezoneAsRegion=false -Duser.timezone=UTC"
+Environment="ORACLE_JDBC_JAR=/data_nuevo/motor_redis/jdbc/ojdbc8 copy.jar"
+ExecStart=/opt/digitalizacion_he1/vevdigi/bin/python worker.py
+Restart=always
+RestartSec=5
+MemoryMax=512M
+CPUQuota=100%
+
+[Install]
+WantedBy=default.target

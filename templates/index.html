@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Consulta DIGITALIZACION</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; }
+    body { margin: 0; background: #f3f5f7; color: #17202a; }
+    main { max-width: 1500px; margin: 0 auto; padding: 24px; }
+    h1 { margin: 0 0 18px; font-size: 1.7rem; }
+    .panel { background: white; border-radius: 10px; padding: 16px; box-shadow: 0 2px 12px #17202a18; }
+    form { display: grid; grid-template-columns: minmax(240px, 2fr) repeat(6, minmax(110px, 1fr)) auto; gap: 10px; align-items: end; }
+    label { display: grid; gap: 5px; font-size: .82rem; color: #52606d; }
+    input, select, button { min-height: 38px; box-sizing: border-box; border: 1px solid #c8d0d9; border-radius: 6px; padding: 7px 9px; font: inherit; }
+    button { background: #1769aa; color: white; border: 0; cursor: pointer; padding: 0 14px; }
+    button.secondary { background: #52606d; }
+    .actions { display: flex; gap: 8px; }
+    #status { margin: 14px 0 8px; color: #52606d; font-size: .9rem; }
+    .progress-grid { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 10px; margin-top: 14px; }
+    .progress-card { border: 1px solid #e1e7ed; border-radius: 8px; padding: 10px; background: #fbfcfd; }
+    .progress-title { font-weight: 600; font-size: .85rem; margin-bottom: 7px; }
+    .progress-bar { height: 10px; border-radius: 999px; overflow: hidden; background: #e5e9ed; }
+    .progress-fill { display: block; height: 100%; width: 0; border-radius: inherit; background: #1769aa; transition: width .3s ease; }
+    .progress-fill.filesystem { background: #2e8b57; }
+    .progress-fill.indeterminate { width: 35%; animation: progress-pulse 1.2s ease-in-out infinite alternate; }
+    .progress-text { margin-top: 6px; color: #52606d; font-size: .75rem; min-height: 2.2em; }
+    @keyframes progress-pulse { from { transform: translateX(-20%); } to { transform: translateX(190%); } }
+    .table-wrap { overflow: auto; margin-top: 12px; max-height: 68vh; }
+    table { width: 100%; border-collapse: collapse; background: white; font-size: .84rem; }
+    th, td { border-bottom: 1px solid #e5e9ed; padding: 8px; text-align: left; white-space: nowrap; }
+    th { position: sticky; top: 0; background: #e9eef3; z-index: 1; }
+    tr:hover { background: #f5f9fc; cursor: pointer; }
+    .pager { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
+    .badge { border-radius: 999px; padding: 3px 8px; background: #e8f4ec; color: #176b36; }
+    dialog { border: 0; border-radius: 10px; max-width: 850px; width: calc(100% - 30px); box-shadow: 0 10px 40px #17202a55; }
+    dialog::backdrop { background: #17202a88; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 60vh; overflow: auto; }
+    @media (max-width: 900px) { form { grid-template-columns: 1fr 1fr; } .actions { grid-column: 1 / -1; } .progress-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Consulta de DIGITALIZACION</h1>
+  <section class="panel">
+    <form id="search-form">
+      <label>DIG_TRAMITE
+        <input id="q" inputmode="numeric" placeholder="número exacto de trámite" maxlength="22">
+      </label>
+      <label>Procesado
+        <select id="procesado"><option value="">Todos</option><option value="S">Sí</option><option value="N">No</option></select>
+      </label>
+      <label>Revisada
+        <select id="revisada"><option value="">Todas</option><option value="S">Sí</option><option value="N">No</option></select>
+      </label>
+      <label>Alta desde
+        <input id="fecha_desde" type="date">
+      </label>
+      <label>Alta hasta
+        <input id="fecha_hasta" type="date">
+      </label>
+      <label>Año desde
+        <input id="anio_desde" type="number" min="1900" max="2100" step="1">
+      </label>
+      <label>Año hasta
+        <input id="anio_hasta" type="number" min="1900" max="2100" step="1">
+      </label>
+      <label>Histórico
+        <span><input id="historico" type="checkbox"> Todos los años (Oracle)</span>
+      </label>
+      <div class="actions">
+        <button type="submit">Buscar</button>
+        <button type="button" class="secondary" id="refresh">Refrescar</button>
+        <button type="button" class="secondary" id="load-all">Cargar ambas cachés</button>
+      </div>
+    </form>
+    <div id="status">Cargando...</div>
+    <div class="progress-grid">
+      <div class="progress-card"><div class="progress-title">Índice Oracle</div><div class="progress-bar"><span id="oracle-progress-bar" class="progress-fill"></span></div><div id="oracle-progress-text" class="progress-text">Sin datos</div></div>
+      <div class="progress-card"><div class="progress-title">Carpetas filesystem</div><div class="progress-bar"><span id="directory-progress-bar" class="progress-fill filesystem"></span></div><div id="directory-progress-text" class="progress-text">Sin datos</div></div>
+      <div class="progress-card"><div class="progress-title">PDFs filesystem</div><div class="progress-bar"><span id="pdf-progress-bar" class="progress-fill filesystem"></span></div><div id="pdf-progress-text" class="progress-text">Sin datos</div></div>
+    </div>
+    <div class="table-wrap"><table id="results"><thead></thead><tbody></tbody></table></div>
+    <div class="pager"><button type="button" class="secondary" id="prev">Anterior</button><span id="page-info"></span><button type="button" id="next">Siguiente</button></div>
+  </section>
+</main>
+<dialog id="detail"><form method="dialog"><button aria-label="Cerrar">Cerrar</button></form><button type="button" class="secondary" id="refresh-tramite">Actualizar este trámite</button><h2>Detalle del registro</h2><pre id="detail-json"></pre><h3>Filesystem</h3><pre id="filesystem-info"></pre></dialog>
+<script>
+  const state = { page: 1, size: 25 };
+  const columns = {{ columns | tojson }};
+  const currentYear = {{ current_year | tojson }};
+  let detailTramite = null;
+  let detailId = null;
+  let tramiteRefreshToken = 0;
+  const $ = id => document.getElementById(id);
+  function params() {
+    const p = new URLSearchParams({ page: state.page, size: state.size });
+    for (const id of ['q', 'procesado', 'revisada', 'fecha_desde', 'fecha_hasta']) if ($(id).value) p.set(id, $(id).value);
+    if ($('historico').checked) {
+      p.set('anio_desde', 'all'); p.set('anio_hasta', 'all');
+    } else {
+      p.set('anio_desde', $('anio_desde').value || currentYear);
+      p.set('anio_hasta', $('anio_hasta').value || currentYear);
+    }
+    return p;
+  }
+  function cell(value) { return value == null ? '' : String(value); }
+  function duration(seconds) {
+    if (seconds == null) return '—';
+    seconds = Math.max(0, Math.round(seconds));
+    const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const s = seconds % 60;
+    return (h ? h + 'h ' : '') + (m ? m + 'm ' : '') + s + 's';
+  }
+  function progressText(progress, unit) {
+    const loaded = Number(progress.loaded || 0).toLocaleString('es-EC');
+    const target = Number(progress.target || 0).toLocaleString('es-EC');
+    const percent = progress.target ? progress.percent + '%' : 'calculando total';
+    const eta = progress.eta_seconds == null ? '' : ' · faltan ' + duration(progress.eta_seconds);
+    const rate = progress.rate_per_second ? ' · ' + Number(progress.rate_per_second).toLocaleString('es-EC') + ' ' + unit + '/s' : '';
+    return (progress.status || 'empty') + ': ' + loaded + (progress.target ? ' / ' + target : '') + ' ' + percent + ' · ' + duration(progress.elapsed_seconds) + rate + eta;
+  }
+  function paintProgress(id, progress, unit) {
+    const bar = $(id + '-bar');
+    const active = ['loading', 'counting'].includes(progress.status);
+    bar.classList.toggle('indeterminate', active && !progress.target);
+    bar.style.width = progress.target ? progress.percent + '%' : (active ? '35%' : '0%');
+    $(id + '-text').textContent = progressText(progress, unit);
+  }
+  async function updateProgress() {
+    try {
+      const response = await fetch('/api/cache/info?progress=' + Date.now());
+      if (!response.ok) return;
+      const data = await response.json();
+      paintProgress('oracle-progress', data.full_cache_progress || { status: 'empty' }, 'reg');
+      const fs = data.filesystem_cache_progress || {};
+      paintProgress('directory-progress', fs.directories || { status: fs.status || 'empty' }, 'dir');
+      paintProgress('pdf-progress', fs.pdfs || { status: fs.status || 'empty' }, 'PDF');
+    } catch (_) { /* The progress display is auxiliary to the search UI. */ }
+  }
+  async function load() {
+    $('status').textContent = 'Consultando...';
+    try {
+      const response = await fetch('/api/digitalizacion?' + params());
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Error de consulta');
+      const head = $('results').querySelector('thead');
+      head.innerHTML = '<tr>' + columns.map(c => '<th>' + c + '</th>').join('') + '</tr>';
+      $('results').querySelector('tbody').innerHTML = data.items.map(row => '<tr data-id="' + row.DIG_ID + '">' + columns.map(c => '<td>' + cell(row[c]).replaceAll('&','&amp;').replaceAll('<','&lt;') + '</td>').join('') + '</tr>').join('');
+      document.querySelectorAll('tbody tr').forEach(tr => tr.onclick = () => detail(tr.dataset.id));
+      $('status').innerHTML = 'Total: <b>' + data.total.toLocaleString('es-EC') + '</b> · <span class="badge">' + data.cache + '</span>';
+      $('page-info').textContent = data.pages ? 'Página ' + data.page + ' de ' + data.pages : 'Sin resultados';
+      $('prev').disabled = data.page <= 1; $('next').disabled = data.page >= data.pages;
+    } catch (error) { $('status').textContent = error.message; }
+  }
+  function renderFilesystem(fs, prefix = '') {
+    if (!fs || fs.status === 'not_ready') {
+      $('filesystem-info').textContent = prefix + 'Índice filesystem aún no cargado.';
+    } else if (fs.status === 'range_not_loaded') {
+      $('filesystem-info').textContent = prefix + 'El rango seleccionado no está cargado en Redis. Rango disponible: ' + fs.loaded_year_from + '-' + fs.loaded_year_to + '.';
+    } else {
+      const folders = (fs.folders || []).map(folder => 'CARPETA: ' + folder.path);
+      const pdfs = (fs.pdfs || []).map(pdf => 'PDF: ' + pdf.path + ' (' + (pdf.size == null ? '?' : pdf.size.toLocaleString('es-EC')) + ' bytes)');
+      $('filesystem-info').textContent = prefix + 'Carpetas: ' + (fs.folder_count || 0) + '\nPDFs: ' + (fs.pdf_count || 0) + '\n\n' + folders.concat(pdfs).join('\n');
+    }
+  }
+  async function detail(id, open = true) {
+    detailId = id;
+    const years = params();
+    const response = await fetch('/api/digitalizacion/' + encodeURIComponent(id) + '?anio_desde=' + encodeURIComponent(years.get('anio_desde')) + '&anio_hasta=' + encodeURIComponent(years.get('anio_hasta')));
+    const data = await response.json();
+    detailTramite = data.item && data.item.DIG_TRAMITE != null ? data.item.DIG_TRAMITE : null;
+    $('detail-json').textContent = JSON.stringify(data.item || data, null, 2);
+    renderFilesystem(data.filesystem);
+    if (open) $('detail').showModal();
+  }
+  async function pollTramiteRefresh(jobId, id, token, previousInfo, attempt = 0) {
+    if (token !== tramiteRefreshToken) return;
+    try {
+      const response = await fetch('/api/cache/tramite/status/' + encodeURIComponent(jobId));
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'No se pudo consultar el estado');
+      if (data.status === 'ready') {
+        await detail(id, false);
+        if (token === tramiteRefreshToken) {
+          $('filesystem-info').textContent = 'Actualización completada.\n\n' + $('filesystem-info').textContent;
+          $('refresh-tramite').disabled = false;
+          $('refresh-tramite').textContent = 'Actualizar este trámite';
+        }
+        return;
+      }
+      if (data.status === 'error') throw new Error(data.error || 'El worker no pudo actualizar el trámite');
+      $('filesystem-info').textContent = 'Actualización encolada / en progreso...\nEl worker está actualizando solo este trámite en ambas cachés.\n\n' + previousInfo;
+      if (attempt >= 40) throw new Error('La actualización sigue en progreso. Puedes cerrar este detalle y revisarlo nuevamente.');
+      setTimeout(() => pollTramiteRefresh(jobId, id, token, previousInfo, attempt + 1), 1500);
+    } catch (error) {
+      if (token !== tramiteRefreshToken) return;
+      $('filesystem-info').textContent = 'No se pudo completar la actualización: ' + error.message;
+      $('refresh-tramite').disabled = false;
+      $('refresh-tramite').textContent = 'Actualizar este trámite';
+    }
+  }
+  $('search-form').onsubmit = event => { event.preventDefault(); state.page = 1; load(); };
+  $('prev').onclick = () => { if (state.page > 1) { state.page--; load(); } };
+  $('next').onclick = () => { state.page++; load(); };
+  $('refresh').onclick = async () => { await fetch('/api/cache/refresh', { method: 'POST' }); state.page = 1; load(); };
+  $('load-all').onclick = async () => {
+    if (!confirm('Se actualizarán la caché Oracle y el índice de carpetas/PDFs 2026. No se modificarán archivos del repositorio. ¿Continuar?')) return;
+    const response = await fetch('/api/cache/load-all', { method: 'POST' });
+    const data = await response.json();
+    $('status').textContent = data.message || data.status || 'Carga encolada; el worker la procesará.';
+  };
+  $('refresh-tramite').onclick = async () => {
+    if (!detailTramite) { $('filesystem-info').textContent = 'No se pudo identificar DIG_TRAMITE.'; return; }
+    const id = detailId;
+    const years = params();
+    const button = $('refresh-tramite');
+    const previousInfo = $('filesystem-info').textContent;
+    button.disabled = true;
+    button.textContent = 'Actualizando...';
+    const token = ++tramiteRefreshToken;
+    try {
+      const response = await fetch('/api/cache/tramite/' + encodeURIComponent(detailTramite) + '?anio_desde=' + encodeURIComponent(years.get('anio_desde')) + '&anio_hasta=' + encodeURIComponent(years.get('anio_hasta')), { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'No se pudo encolar la actualización');
+      $('filesystem-info').textContent = (data.message || 'Actualización encolada') + '\nEsperando al worker...\n\n' + previousInfo;
+      pollTramiteRefresh(data.job_id, id, token, previousInfo);
+    } catch (error) {
+      $('filesystem-info').textContent = 'No se pudo encolar la actualización: ' + error.message;
+      button.disabled = false;
+      button.textContent = 'Actualizar este trámite';
+    }
+  };
+  $('anio_desde').value = currentYear; $('anio_hasta').value = currentYear;
+  $('historico').onchange = () => {
+    $('anio_desde').disabled = $('historico').checked;
+    $('anio_hasta').disabled = $('historico').checked;
+  };
+  load();
+  updateProgress();
+  setInterval(updateProgress, 2000);
+</script>
+</body>
+</html>

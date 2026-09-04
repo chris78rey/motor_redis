@@ -1,0 +1,10 @@
+Fecha: 2026-09-04 13:55 UTC
+CODEX_SESSION_ID: 01a06c9f-c782-7102-a8cc-fbce9a906877
+CODEX_THREAD_ID: 01a06c9f-c782-7102-a8cc-fbce9a906877
+Recuperación: codex resume 01a06c9f-c782-7102-a8cc-fbce9a906877
+Objetivo: confirmar si fastapi_app puede seguir accediendo a motor_redis después de moverlo a un repositorio Git independiente.
+Decisiones: fastapi_app/app.py consume motor_redis por HTTP, no mediante import local. Si la API mantiene la misma URL 127.0.0.1:8090 en el mismo servidor, la separación Git no rompe el acceso. Si cambia ruta física, deben actualizarse WorkingDirectory/ExecStart de systemd; si cambia de servidor, MOTOR_REDIS_API_URL debe apuntar al nuevo host/puerto y Redis/Oracle/filesystem deben seguir accesibles.
+Archivos modificados: motor_redis/codex_sess.txt (registro obligatorio de sesión).
+Comprobaciones: git rev-parse --show-toplevel devuelve /opt/digitalizacion_he1; git ls-files motor_redis lista 11 archivos; no existe motor_redis/.git. fastapi_app/app.py usa _cd_redis_api_url y llama /api/filesystem/tramite, /api/filesystem/tramites/counts y /api/digitalizacion. motor-redis-api.service y motor-redis-worker.service están enabled/active; ambos usan WorkingDirectory=/opt/digitalizacion_he1/motor_redis; API escucha 0.0.0.0:8090 y los logs muestran peticiones locales y remotas. El estado local actual tiene solo codex_sess.txt modificado por el registro obligatorio de sesión.
+Bloqueos: ninguno.
+Siguiente paso: si se decide separar el repositorio, preservar historial, retirar motor_redis del índice padre, ignorar la carpeta en el padre y crear el repositorio independiente sin cambiarlo todavía en esta sesión.

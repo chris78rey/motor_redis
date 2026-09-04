@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.py[cod]
+.venv/
+vevdigi/
+logs/
+jdbc/*.jar
+graphify-out/
