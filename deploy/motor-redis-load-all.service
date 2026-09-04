@@ -1,0 +1,9 @@
+[Unit]
+Description=Cargar ambas caches de motor_redis
+After=motor-redis-api-data.service
+Requires=motor-redis-api-data.service
+
+[Service]
+Type=oneshot
+ExecStart=/data_nuevo/motor_redis/deploy/motor-redis-load-all.sh
+TimeoutStartSec=90

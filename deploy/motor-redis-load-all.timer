@@ -1,0 +1,12 @@
+[Unit]
+Description=Programación laboral de carga de ambas caches
+
+[Timer]
+Unit=motor-redis-load-all.service
+OnCalendar=Mon..Fri *-*-* 08..13:00/10:00 America/Guayaquil
+OnCalendar=Mon..Fri *-*-* 14:00:00 America/Guayaquil
+Persistent=false
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
