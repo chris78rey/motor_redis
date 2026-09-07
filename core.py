@@ -420,6 +420,9 @@ class Cache:
     def enqueue(self, payload: dict[str, Any]) -> None:
         self.client.lpush("dig:v1:jobs", json.dumps(payload, ensure_ascii=False))
 
+    def enqueue_priority(self, payload: dict[str, Any]) -> None:
+        self.client.lpush("dig:v1:jobs:priority", json.dumps(payload, ensure_ascii=False))
+
     def full_status(self) -> dict[str, Any]:
         return self.client.hgetall(FULL_META_KEY)
 

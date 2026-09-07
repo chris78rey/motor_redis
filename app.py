@@ -166,7 +166,7 @@ def api_refresh_tramite(
             mapping={"status": "queued", "tramite": str(tramite)},
         )
         cache.client.expire(status_key, 3600)
-        cache.enqueue(
+        cache.enqueue_priority(
             {
                 "job": "warm_tramite",
                 "tramite": tramite,

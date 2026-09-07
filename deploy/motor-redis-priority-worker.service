@@ -1,0 +1,18 @@
+[Unit]
+Description=Worker prioritario de refresco por trámite DIGITALIZACION
+After=redis-server.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/data_nuevo/motor_redis
+Environment="JAVA_TOOL_OPTIONS=-Doracle.jdbc.timezoneAsRegion=false -Duser.timezone=UTC"
+Environment="DIGI_PRIORITY_ONLY=1"
+ExecStart=/data_nuevo/motor_redis/.venv/bin/python worker.py
+Restart=always
+RestartSec=5
+MemoryMax=512M
+CPUQuota=100%
+
+[Install]
+WantedBy=default.target

@@ -108,8 +108,14 @@ def handle(payload: dict) -> None:
 
 def main() -> None:
     logger.info("DIGITALIZACION cache worker started")
+    priority_only = os.environ.get("DIGI_PRIORITY_ONLY", "0").lower() in {"1", "true", "yes"}
     while running:
-        item = cache.client.brpop("dig:v1:jobs", timeout=5)
+        if priority_only:
+            item = cache.client.brpop("dig:v1:jobs:priority", timeout=5)
+        else:
+            item = cache.client.rpop("dig:v1:jobs:priority")
+            if not item:
+                item = cache.client.brpop("dig:v1:jobs", timeout=5)
         if item:
             try:
                 handle(json.loads(item[1]))
