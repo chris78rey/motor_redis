@@ -209,6 +209,16 @@ def api_refresh():
         raise HTTPException(status_code=503, detail=f"No se pudo encolar el refresco: {exc}") from exc
 
 
+@app.post("/api/cache/current-month")
+def api_current_month_refresh():
+    """Queue a refresh limited to the current FE_PLA_ANIOMES value."""
+    try:
+        cache.enqueue({"job": "warm_current_month"})
+        return {"status": "queued", "message": "Refresco del mes actual encolado"}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"No se pudo encolar el refresco mensual: {exc}") from exc
+
+
 @app.post("/api/cache/full-load")
 def api_full_load():
     """Queue a complete snapshot load; the worker performs it in batches."""

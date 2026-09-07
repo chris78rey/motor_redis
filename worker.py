@@ -11,6 +11,7 @@ from core import (
     cache,
     load_filesystem_cache,
     load_full_cache,
+    refresh_current_month_cache,
     process_control_documental_pending,
     refresh_search,
     refresh_tramite_cache,
@@ -33,6 +34,10 @@ signal.signal(signal.SIGINT, stop)
 
 
 def handle(payload: dict) -> None:
+    if payload.get("job") == "warm_current_month":
+        result = refresh_current_month_cache()
+        logger.info("Current month Redis refresh finished: %s", result)
+        return
     if payload.get("job") == "warm_tramite":
         job_id = payload.get("job_id")
         status_key = f"{TRAMITE_JOB_STATUS_PREFIX}{job_id}" if job_id else None

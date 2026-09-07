@@ -85,6 +85,7 @@ FULL_IDS_KEY = "dig:v1:full:ids"
 FULL_TRAMITE_KEY = "dig:v1:full:tramite"
 FULL_YEAR_PREFIX = "dig:v1:full:year:"
 FULL_META_KEY = "dig:v1:full:meta"
+CURRENT_MONTH_META_KEY = "dig:v1:current-month:meta"
 FULL_LOCK_KEY = "dig:v1:full:lock"
 CURRENT_YEAR = str(datetime.now(timezone.utc).year)
 
@@ -763,6 +764,122 @@ def load_full_cache() -> dict[str, Any]:
                 "elapsed_seconds": f"{max(0.0, time.time() - started_epoch):.1f}",
             },
         )
+        raise
+    finally:
+        if conn is not None:
+            conn.close()
+        try:
+            lock.release()
+        except Exception:
+            pass
+
+
+def refresh_current_month_cache() -> dict[str, Any]:
+    """Replace only the current FE_PLA_ANIOMES slice in the full Redis cache."""
+    month = datetime.now(timezone.utc).strftime("%Y%m")
+    lock = cache.client.lock(FULL_LOCK_KEY, timeout=15 * 60, blocking=False)
+    if not lock.acquire():
+        return {"status": "busy", "month": month}
+    conn = None
+    started = datetime.now(timezone.utc).isoformat()
+    started_epoch = time.time()
+    cache.client.hset(
+        CURRENT_MONTH_META_KEY,
+        mapping={"status": "loading", "month": month, "started_at": started,
+                 "started_epoch": str(started_epoch), "loaded_rows": "0",
+                 "target_rows": "0", "removed_rows": "0"},
+    )
+    try:
+        if not cache.full_ready():
+            cache.client.hset(CURRENT_MONTH_META_KEY, mapping={"status": "not_ready", "finished_at": started})
+            return {"status": "not_ready", "month": month}
+
+        conn = oracle_connect()
+        cursor = conn.cursor()
+        cursor.arraysize = settings.full_batch_size
+        table_ref = f"{settings.oracle_owner}.{settings.oracle_table}"
+        cursor.execute(
+            f"SELECT COUNT(*) FROM {table_ref} WHERE FE_PLA_ANIOMES = ?", [month]
+        )
+        target_rows = int(cursor.fetchone()[0] or 0)
+        cache.client.hset(CURRENT_MONTH_META_KEY, mapping={"target_rows": str(target_rows)})
+        cursor.execute(
+            f"SELECT * FROM {table_ref} "
+            "WHERE FE_PLA_ANIOMES = ? ORDER BY DIG_ID",
+            [month],
+        )
+        columns = [str(item[0]).upper() for item in (cursor.description or [])]
+        records: dict[str, dict[str, Any]] = {}
+        while True:
+            rows = cursor.fetchmany(settings.full_batch_size)
+            if not rows:
+                break
+            for raw_row in rows:
+                record = {
+                    column: _json_value(value)
+                    for column, value in zip(columns, raw_row)
+                }
+                dig_id = record.get("DIG_ID")
+                if dig_id is not None:
+                    records[str(int(dig_id))] = record
+            cache.client.hset(CURRENT_MONTH_META_KEY, mapping={"loaded_rows": str(len(records))})
+
+        month_key = f"{FULL_YEAR_PREFIX}{month[:4]}"
+        year_ids = cache.client.zrange(month_key, 0, -1)
+        old_raw_rows = cache.client.hmget(FULL_ROWS_KEY, year_ids)
+        old_ids = {
+            dig_id
+            for dig_id, raw in zip(year_ids, old_raw_rows)
+            if raw
+            and str(json.loads(raw).get("FE_PLA_ANIOMES") or "").strip() == month
+        }
+        new_ids = set(records)
+        removed_ids = old_ids - new_ids
+        pipe = cache.client.pipeline(transaction=True)
+        if removed_ids:
+            pipe.hdel(FULL_ROWS_KEY, *removed_ids)
+            pipe.zrem(FULL_IDS_KEY, *removed_ids)
+            pipe.zrem(month_key, *removed_ids)
+        if records:
+            row_map = {
+                dig_id: json.dumps(record, ensure_ascii=False, separators=(",", ":"))
+                for dig_id, record in records.items()
+            }
+            pipe.hset(FULL_ROWS_KEY, mapping=row_map)
+            pipe.zadd(FULL_IDS_KEY, {dig_id: float(dig_id) for dig_id in records})
+            pipe.zadd(month_key, {dig_id: float(dig_id) for dig_id in records})
+        old_tramite_ids = {
+            str(tramite): dig_id
+            for tramite, dig_id in cache.client.hgetall(FULL_TRAMITE_KEY).items()
+            if dig_id in old_ids
+        }
+        if old_tramite_ids:
+            pipe.hdel(FULL_TRAMITE_KEY, *old_tramite_ids.keys())
+        tramite_map = {
+            str(int(record["DIG_TRAMITE"])): dig_id
+            for dig_id, record in records.items()
+            if record.get("DIG_TRAMITE") is not None
+        }
+        if tramite_map:
+            pipe.hset(FULL_TRAMITE_KEY, mapping=tramite_map)
+        pipe.execute()
+        finished = datetime.now(timezone.utc).isoformat()
+        cache.client.hset(CURRENT_MONTH_META_KEY, mapping={
+            "status": "ready", "loaded_rows": str(len(records)),
+            "removed_rows": str(len(removed_ids)), "loaded_at": finished,
+            "finished_at": finished, "elapsed_seconds": f"{time.time() - started_epoch:.1f}",
+        })
+        return {
+            "status": "ready",
+            "month": month,
+            "loaded": len(records),
+            "removed": len(removed_ids),
+        }
+    except Exception as exc:
+        cache.client.hset(CURRENT_MONTH_META_KEY, mapping={
+            "status": "error", "error": str(exc)[:500],
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+        })
         raise
     finally:
         if conn is not None:
@@ -1597,6 +1714,7 @@ def cache_info() -> dict[str, Any]:
     info = cache.client.info("memory")
     full = cache.full_status()
     filesystem = cache.filesystem_status()
+    current_month = cache.client.hgetall(CURRENT_MONTH_META_KEY)
     return {
         "redis": "ok",
         "used_memory_human": info.get("used_memory_human"),
@@ -1610,6 +1728,10 @@ def cache_info() -> dict[str, Any]:
         "full_cache_year_to": full.get("year_to", settings.full_year_to),
         "full_cache_progress": _progress_payload(
             full, "loaded_rows", "target_rows", "rate_rows_sec"
+        ),
+        "current_month": current_month.get("month"),
+        "current_month_progress": _progress_payload(
+            current_month, "loaded_rows", "target_rows", "rate_rows_sec"
         ),
         "filesystem_cache_status": filesystem.get("status", "empty"),
         "filesystem_cache_root": filesystem.get("root", str(settings.filesystem_base_dir)),

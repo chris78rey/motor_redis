@@ -15,14 +15,16 @@
     input, select, button { min-height: 38px; box-sizing: border-box; border: 1px solid #c8d0d9; border-radius: 6px; padding: 7px 9px; font: inherit; }
     button { background: #1769aa; color: white; border: 0; cursor: pointer; padding: 0 14px; }
     button.secondary { background: #52606d; }
+    button.current-month { background: #e67e22; }
     .actions { display: flex; gap: 8px; }
     #status { margin: 14px 0 8px; color: #52606d; font-size: .9rem; }
-    .progress-grid { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 10px; margin-top: 14px; }
+    .progress-grid { display: grid; grid-template-columns: repeat(4, minmax(180px, 1fr)); gap: 10px; margin-top: 14px; }
     .progress-card { border: 1px solid #e1e7ed; border-radius: 8px; padding: 10px; background: #fbfcfd; }
     .progress-title { font-weight: 600; font-size: .85rem; margin-bottom: 7px; }
     .progress-bar { height: 10px; border-radius: 999px; overflow: hidden; background: #e5e9ed; }
     .progress-fill { display: block; height: 100%; width: 0; border-radius: inherit; background: #1769aa; transition: width .3s ease; }
     .progress-fill.filesystem { background: #2e8b57; }
+    .progress-fill.current-month { background: #e67e22; }
     .progress-fill.indeterminate { width: 35%; animation: progress-pulse 1.2s ease-in-out infinite alternate; }
     .progress-text { margin-top: 6px; color: #52606d; font-size: .75rem; min-height: 2.2em; }
     @keyframes progress-pulse { from { transform: translateX(-20%); } to { transform: translateX(190%); } }
@@ -71,6 +73,7 @@
       <div class="actions">
         <button type="submit">Buscar</button>
         <button type="button" class="secondary" id="refresh">Refrescar</button>
+        <button type="button" class="current-month" id="refresh-month" title="Actualiza únicamente el mes corriente">Refrescar mes actual</button>
         <button type="button" class="secondary" id="load-all">Cargar ambas cachés</button>
       </div>
     </form>
@@ -79,6 +82,7 @@
       <div class="progress-card"><div class="progress-title">Índice Oracle</div><div class="progress-bar"><span id="oracle-progress-bar" class="progress-fill"></span></div><div id="oracle-progress-text" class="progress-text">Sin datos</div></div>
       <div class="progress-card"><div class="progress-title">Carpetas filesystem</div><div class="progress-bar"><span id="directory-progress-bar" class="progress-fill filesystem"></span></div><div id="directory-progress-text" class="progress-text">Sin datos</div></div>
       <div class="progress-card"><div class="progress-title">PDFs filesystem</div><div class="progress-bar"><span id="pdf-progress-bar" class="progress-fill filesystem"></span></div><div id="pdf-progress-text" class="progress-text">Sin datos</div></div>
+      <div class="progress-card"><div class="progress-title">Refresco mes actual</div><div class="progress-bar"><span id="month-progress-bar" class="progress-fill current-month"></span></div><div id="month-progress-text" class="progress-text">Sin datos</div></div>
     </div>
     <div class="table-wrap"><table id="results"><thead></thead><tbody></tbody></table></div>
     <div class="pager"><button type="button" class="secondary" id="prev">Anterior</button><span id="page-info"></span><button type="button" id="next">Siguiente</button></div>
@@ -135,6 +139,7 @@
       const fs = data.filesystem_cache_progress || {};
       paintProgress('directory-progress', fs.directories || { status: fs.status || 'empty' }, 'dir');
       paintProgress('pdf-progress', fs.pdfs || { status: fs.status || 'empty' }, 'PDF');
+      paintProgress('month-progress', data.current_month_progress || { status: 'empty' }, 'reg');
     } catch (_) { /* The progress display is auxiliary to the search UI. */ }
   }
   async function load() {
@@ -203,6 +208,12 @@
   $('prev').onclick = () => { if (state.page > 1) { state.page--; load(); } };
   $('next').onclick = () => { state.page++; load(); };
   $('refresh').onclick = async () => { await fetch('/api/cache/refresh', { method: 'POST' }); state.page = 1; load(); };
+  $('refresh-month').onclick = async () => {
+    if (!confirm('Se actualizará únicamente el mes actual en Redis; los meses anteriores no se tocarán. ¿Continuar?')) return;
+    const response = await fetch('/api/cache/current-month', { method: 'POST' });
+    const data = await response.json();
+    $('status').textContent = data.message || data.status || 'Refresco mensual encolado; el worker lo procesará.';
+  };
   $('load-all').onclick = async () => {
     if (!confirm('Se actualizarán la caché Oracle y el índice de carpetas/PDFs 2026. No se modificarán archivos del repositorio. ¿Continuar?')) return;
     const response = await fetch('/api/cache/load-all', { method: 'POST' });
