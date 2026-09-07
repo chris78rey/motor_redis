@@ -108,6 +108,13 @@
     }
     return p;
   }
+  // Control documental vuelve a esta pantalla con estos parámetros después de
+  // subir un PDF. Inicializarlos aquí evita mostrar la búsqueda general/caché
+  // anterior y permite refrescar únicamente el trámite afectado.
+  const returnParams = new URLSearchParams(window.location.search);
+  const returnTramite = returnParams.get('tramite_ref');
+  const returnRefresh = returnParams.get('redis_refresh') === '1';
+  if (returnTramite && /^\d+$/.test(returnTramite)) $('q').value = returnTramite;
   function cell(value) { return value == null ? '' : String(value); }
   function duration(seconds) {
     if (seconds == null) return '—';
@@ -156,6 +163,34 @@
       $('page-info').textContent = data.pages ? 'Página ' + data.page + ' de ' + data.pages : 'Sin resultados';
       $('prev').disabled = data.page <= 1; $('next').disabled = data.page >= data.pages;
     } catch (error) { $('status').textContent = error.message; }
+  }
+  async function refreshReturnedTramite() {
+    if (!returnRefresh || !returnTramite || !/^\d+$/.test(returnTramite)) return;
+    $('status').textContent = 'PDF cargado; actualizando el trámite en Redis...';
+    try {
+      const years = params();
+      const response = await fetch('/api/cache/tramite/' + encodeURIComponent(returnTramite)
+        + '?anio_desde=' + encodeURIComponent(years.get('anio_desde'))
+        + '&anio_hasta=' + encodeURIComponent(years.get('anio_hasta')), { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'No se pudo encolar el refresco');
+      const check = async () => {
+        const statusResponse = await fetch('/api/cache/tramite/status/' + encodeURIComponent(data.job_id));
+        const status = await statusResponse.json();
+        if (status.status === 'ready') {
+          state.page = 1;
+          await load();
+          $('status').textContent += ' · PDF actualizado.';
+        } else if (status.status === 'error') {
+          $('status').textContent = 'El PDF se cargó, pero Redis no pudo actualizarse: ' + (status.error || 'error');
+        } else {
+          setTimeout(check, 1500);
+        }
+      };
+      check();
+    } catch (error) {
+      $('status').textContent = 'El PDF se cargó, pero no se pudo refrescar la pantalla: ' + error.message;
+    }
   }
   function renderFilesystem(fs, prefix = '') {
     if (!fs || fs.status === 'not_ready') {
@@ -246,7 +281,7 @@
     $('anio_desde').disabled = $('historico').checked;
     $('anio_hasta').disabled = $('historico').checked;
   };
-  load();
+  load().then(refreshReturnedTramite);
   updateProgress();
   setInterval(updateProgress, 2000);
 </script>
