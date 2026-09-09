@@ -219,6 +219,20 @@ def api_current_month_refresh():
         raise HTTPException(status_code=503, detail=f"No se pudo encolar el refresco mensual: {exc}") from exc
 
 
+@app.post("/api/cache/recent-days")
+def api_recent_days_refresh(days: int = Query(7, ge=3, le=8)):
+    """Queue a refresh for the rolling DIG_FECHA_PLANILLA window."""
+    if os.environ.get("DIGI_RECENT_DAYS_ENABLED", "1").lower() in {"0", "false", "no"}:
+        raise HTTPException(status_code=404, detail="Refresco por período deshabilitado")
+    if days not in {3, 5, 7, 8}:
+        raise HTTPException(status_code=400, detail="days debe ser 3, 5, 7 u 8")
+    try:
+        cache.enqueue({"job": "warm_recent_days", "days": days})
+        return {"status": "queued", "days": days, "message": f"Refresco de los últimos {days} días encolado"}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"No se pudo encolar el refresco: {exc}") from exc
+
+
 @app.post("/api/cache/full-load")
 def api_full_load():
     """Queue a complete snapshot load; the worker performs it in batches."""

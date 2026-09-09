@@ -74,6 +74,8 @@
         <button type="submit">Buscar</button>
         <button type="button" class="secondary" id="refresh">Refrescar</button>
         <button type="button" class="current-month" id="refresh-month" title="Actualiza únicamente el mes corriente">Refrescar mes actual</button>
+        <select id="recent-days" title="Ventana de DIG_FECHA_PLANILLA"><option value="3">3 días</option><option value="5">5 días</option><option value="7" selected>Última semana (7 días)</option><option value="8">8 días</option></select>
+        <button type="button" class="secondary" id="refresh-recent">Refrescar período</button>
         <button type="button" class="secondary" id="load-all">Cargar ambas cachés</button>
       </div>
     </form>
@@ -248,6 +250,13 @@
     const response = await fetch('/api/cache/current-month', { method: 'POST' });
     const data = await response.json();
     $('status').textContent = data.message || data.status || 'Refresco mensual encolado; el worker lo procesará.';
+  };
+  $('refresh-recent').onclick = async () => {
+    const days = $('recent-days').value;
+    if (!confirm(`Se actualizarán los últimos ${days} días según DIG_FECHA_PLANILLA. ¿Continuar?`)) return;
+    const response = await fetch('/api/cache/recent-days?days=' + days, { method: 'POST' });
+    const data = await response.json();
+    $('status').textContent = data.message || data.detail || data.status || 'Refresco encolado.';
   };
   $('load-all').onclick = async () => {
     if (!confirm('Se actualizarán la caché Oracle y el índice de carpetas/PDFs 2026. No se modificarán archivos del repositorio. ¿Continuar?')) return;

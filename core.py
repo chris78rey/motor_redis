@@ -86,6 +86,7 @@ FULL_TRAMITE_KEY = "dig:v1:full:tramite"
 FULL_YEAR_PREFIX = "dig:v1:full:year:"
 FULL_META_KEY = "dig:v1:full:meta"
 CURRENT_MONTH_META_KEY = "dig:v1:current-month:meta"
+RECENT_DAYS_META_KEY = "dig:v1:recent-days:meta"
 FULL_LOCK_KEY = "dig:v1:full:lock"
 CURRENT_YEAR = str(datetime.now(timezone.utc).year)
 
@@ -303,6 +304,7 @@ def build_filters(
     anio_desde: str = "",
     anio_hasta: str = "",
     anio: str | None = None,
+    fecha_column: str = "DIG_FECHA_ALTA",
 ) -> tuple[str, list[Any]]:
     clauses: list[str] = []
     params: list[Any] = []
@@ -322,10 +324,10 @@ def build_filters(
         clauses.append("TRIM(NVL(REVISADA_CONTRL_DOC, 'N')) = ?")
         params.append(revisada.strip().upper())
     if fecha_desde.strip():
-        clauses.append("DIG_FECHA_ALTA >= TO_DATE(?, 'YYYY-MM-DD')")
+        clauses.append(f"{fecha_column} >= TO_DATE(?, 'YYYY-MM-DD')")
         params.append(fecha_desde.strip())
     if fecha_hasta.strip():
-        clauses.append("DIG_FECHA_ALTA < TO_DATE(?, 'YYYY-MM-DD') + 1")
+        clauses.append(f"{fecha_column} < TO_DATE(?, 'YYYY-MM-DD') + 1")
         params.append(fecha_hasta.strip())
     if anio is not None and not anio_desde and not anio_hasta:
         anio_desde = anio_hasta = anio
@@ -891,6 +893,39 @@ def refresh_current_month_cache() -> dict[str, Any]:
             lock.release()
         except Exception:
             pass
+
+
+def refresh_recent_days_cache(days: int) -> dict[str, Any]:
+    """Refresh the search cache for a rolling DIG_FECHA_PLANILLA window."""
+    if days not in {3, 5, 7, 8}:
+        raise ValueError("days debe ser uno de: 3, 5, 7 u 8")
+    started_epoch = time.time()
+    started = datetime.now(timezone.utc).isoformat()
+    cache.client.hset(RECENT_DAYS_META_KEY, mapping={
+        "status": "loading", "days": str(days), "started_at": started,
+    })
+    try:
+        end = datetime.now(timezone.utc).date()
+        begin = end.fromordinal(end.toordinal() - days + 1)
+        result = search_digitalizacion(
+            q="", procesado="", revisada="",
+            fecha_desde=begin.isoformat(), fecha_hasta=end.isoformat(),
+            anio_desde="all", anio_hasta="all", page=1, size=25,
+            force=True, fecha_column="DIG_FECHA_PLANILLA",
+        )
+        finished = datetime.now(timezone.utc).isoformat()
+        cache.client.hset(RECENT_DAYS_META_KEY, mapping={
+            "status": "ready", "days": str(days), "loaded_rows": str(len(result["items"])),
+            "total_rows": str(result["total"]), "finished_at": finished,
+            "elapsed_seconds": f"{time.time() - started_epoch:.1f}",
+        })
+        return {"status": "ready", "days": days, "total": result["total"]}
+    except Exception as exc:
+        cache.client.hset(RECENT_DAYS_META_KEY, mapping={
+            "status": "error", "days": str(days), "error": str(exc)[:500],
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+        })
+        raise
 
 
 def _filesystem_entries(root: Path, years: list[str]):
@@ -1587,6 +1622,7 @@ def search_digitalizacion(
     page: int = 1,
     size: int = 25,
     force: bool = False,
+    fecha_column: str = "DIG_FECHA_ALTA",
 ) -> dict[str, Any]:
     page, size = _safe_page(page, size)
     anio_desde, anio_hasta = _normalize_year_range(anio_desde, anio_hasta)
@@ -1649,6 +1685,7 @@ def search_digitalizacion(
         fecha_hasta=params["fecha_hasta"],
         anio_desde=anio_desde,
         anio_hasta=anio_hasta,
+        fecha_column=fecha_column,
     )
     table_ref = f"{settings.oracle_owner}.{settings.oracle_table}"
     select_sql = ", ".join(DISPLAY_COLUMNS)
@@ -1736,6 +1773,7 @@ def cache_info() -> dict[str, Any]:
         "current_month_progress": _progress_payload(
             current_month, "loaded_rows", "target_rows", "rate_rows_sec"
         ),
+        "recent_days_progress": cache.client.hgetall(RECENT_DAYS_META_KEY),
         "filesystem_cache_status": filesystem.get("status", "empty"),
         "filesystem_cache_root": filesystem.get("root", str(settings.filesystem_base_dir)),
         "filesystem_cache_year_from": filesystem.get("year_from", settings.filesystem_year_from),

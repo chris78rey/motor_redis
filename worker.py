@@ -12,6 +12,7 @@ from core import (
     load_filesystem_cache,
     load_full_cache,
     refresh_current_month_cache,
+    refresh_recent_days_cache,
     process_control_documental_pending,
     refresh_search,
     refresh_tramite_cache,
@@ -37,6 +38,10 @@ def handle(payload: dict) -> None:
     if payload.get("job") == "warm_current_month":
         result = refresh_current_month_cache()
         logger.info("Current month Redis refresh finished: %s", result)
+        return
+    if payload.get("job") == "warm_recent_days":
+        result = refresh_recent_days_cache(int(payload.get("days", 7)))
+        logger.info("Recent days Redis refresh finished: %s", result)
         return
     if payload.get("job") == "warm_tramite":
         job_id = payload.get("job_id")
