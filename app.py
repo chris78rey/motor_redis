@@ -304,6 +304,25 @@ def api_load_all_caches():
         raise HTTPException(status_code=503, detail=f"No se pudo encolar la carga de ambas cachés: {exc}") from exc
 
 
+@app.post("/api/cache/release-stale-locks")
+def api_release_stale_locks():
+    """Release only interrupted combined-load locks; never stop active loads."""
+    full_status = str(cache.full_status().get("status") or "empty").lower()
+    filesystem_status = str(cache.filesystem_status().get("status") or "empty").lower()
+    active = {"loading", "counting"}
+    if full_status in active or filesystem_status in active:
+        raise HTTPException(
+            status_code=409,
+            detail="Hay una carga activa; espere a que termine antes de liberar bloqueos.",
+        )
+    removed = int(cache.client.delete("dig:v1:full:lock", "dig:v1:fs:lock") or 0)
+    return {
+        "status": "ready",
+        "removed": removed,
+        "message": "Bloqueos antiguos liberados. Ya puede cargar ambas cachés.",
+    }
+
+
 @app.post("/api/cache/filesystem-load")
 def api_filesystem_load():
     """Queue a read-only filesystem index load; the worker performs the scan."""
