@@ -1,0 +1,74 @@
+{
+  "202602": {
+    "fe_pla_aniomes": "202602",
+    "hojas": 199665,
+    "pdfs": 112867,
+    "tramites": 34606,
+    "failed_pdfs": 0,
+    "status": "ready",
+    "calculated_at": "2026-09-25T15:33:22.284162+00:00"
+  },
+  "202603": {
+    "fe_pla_aniomes": "202603",
+    "hojas": 233613,
+    "pdfs": 136521,
+    "tramites": 42751,
+    "failed_pdfs": 2,
+    "status": "ready_with_errors",
+    "calculated_at": "2026-09-25T15:33:22.285406+00:00"
+  },
+  "202604": {
+    "fe_pla_aniomes": "202604",
+    "hojas": 221557,
+    "pdfs": 124742,
+    "tramites": 39177,
+    "failed_pdfs": 6,
+    "status": "ready_with_errors",
+    "calculated_at": "2026-09-25T15:33:22.285432+00:00"
+  },
+  "202605": {
+    "fe_pla_aniomes": "202605",
+    "hojas": 215182,
+    "pdfs": 121378,
+    "tramites": 37779,
+    "failed_pdfs": 1,
+    "status": "ready_with_errors",
+    "calculated_at": "2026-09-25T15:33:22.285445+00:00"
+  },
+  "202606": {
+    "fe_pla_aniomes": "202606",
+    "hojas": 243018,
+    "pdfs": 134688,
+    "tramites": 41781,
+    "failed_pdfs": 2,
+    "status": "ready_with_errors",
+    "calculated_at": "2026-09-25T15:33:22.285455+00:00"
+  },
+  "202607": {
+    "fe_pla_aniomes": "202607",
+    "hojas": 243370,
+    "pdfs": 135926,
+    "tramites": 42320,
+    "failed_pdfs": 3,
+    "status": "ready_with_errors",
+    "calculated_at": "2026-09-25T15:33:22.285465+00:00"
+  },
+  "202608": {
+    "fe_pla_aniomes": "202608",
+    "hojas": 198273,
+    "pdfs": 133326,
+    "tramites": 31048,
+    "failed_pdfs": 5,
+    "status": "ready_with_errors",
+    "calculated_at": "2026-09-25T15:33:22.285477+00:00"
+  },
+  "202609": {
+    "fe_pla_aniomes": "202609",
+    "hojas": 119513,
+    "pdfs": 94576,
+    "tramites": 24613,
+    "failed_pdfs": 1,
+    "status": "ready_with_errors",
+    "calculated_at": "2026-09-28T12:46:26.739600+00:00"
+  }
+}

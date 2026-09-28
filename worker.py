@@ -18,6 +18,7 @@ from core import (
     refresh_tramite_cache,
     TRAMITE_JOB_STATUS_PREFIX,
 )
+from page_count import calculate_page_counts
 
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
@@ -35,6 +36,10 @@ signal.signal(signal.SIGINT, stop)
 
 
 def handle(payload: dict) -> None:
+    if payload.get("job") == "calculate_page_counts":
+        result = calculate_page_counts(payload.get("desde", "202602"), payload.get("hasta"))
+        logger.info("Monthly PDF page count finished: %s", result)
+        return
     if payload.get("job") == "warm_current_month":
         result = refresh_current_month_cache()
         logger.info("Current month Redis refresh finished: %s", result)

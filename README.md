@@ -51,6 +51,9 @@ El botón `Refrescar` elimina el caché de búsquedas y encola un calentamiento 
 GET  /api/digitalizacion?q=...&anio_desde=2026&anio_hasta=2026&procesado=S&page=1&size=25
 GET  /api/digitalizacion/{DIG_ID}
 GET  /api/filesystem/tramite/{DIG_TRAMITE}?anio_desde=2026&anio_hasta=2026
+GET  /api/reportes/hojas?desde=202602&hasta=202609
+GET  /api/reportes/hojas/status
+POST /api/reportes/hojas/recalcular?desde=202602&hasta=202609
 GET  /api/cache/info
 POST /api/cache/refresh
 POST /api/cache/full-load
@@ -62,5 +65,9 @@ GET  /health
 ```
 
 El estado de ambas colecciones se consulta en `/api/cache/info`; la pantalla actualiza barras de progreso cada dos segundos con porcentaje, velocidad, tiempo transcurrido y ETA. Oracle continúa siendo la fuente oficial y las instantáneas deben refrescarse cuando se necesite. El índice filesystem solo lee el repositorio: no modifica, mueve, renombra ni elimina archivos.
+
+El reporte `/api/reportes/hojas` cuenta, en modo solo lectura, las páginas de los PDFs asociados a cada `FE_PLA_ANIOMES`. El proceso guarda únicamente los totales mensuales en Redis; nunca copia ni modifica los PDFs. Se inicia con `POST /api/reportes/hojas/recalcular` y se supervisa con `/api/reportes/hojas/status`.
+
+El timer `motor-redis-page-count.timer` está programado diariamente a las 06:00, hora de Guayaquil, después de la carga de cachés de las 05:00. El proceso diario toma únicamente el mes actual; conserva los totales históricos desde `202602`.
 
 Desde el detalle de un registro, `Actualizar este trámite` refresca únicamente ese `DIG_TRAMITE` en la caché Oracle y en el índice filesystem. El worker elimina las rutas antiguas del trámite y vuelve a leer solo sus carpetas y PDFs.

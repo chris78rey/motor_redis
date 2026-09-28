@@ -98,6 +98,13 @@ FS_META_KEY = "dig:v1:fs:meta"
 FS_LOCK_KEY = "dig:v1:fs:lock"
 TRAMITE_JOB_STATUS_PREFIX = "dig:v1:tramite-refresh:"
 
+# Monthly PDF page-count report. This is deliberately separate from the PDF
+# filesystem index: the PDFs remain on disk and are never copied to Redis.
+PAGE_COUNT_META_KEY = "dig:v1:page-count:meta"
+PAGE_COUNT_MONTHS_KEY = "dig:v1:page-count:months"
+PAGE_COUNT_LOCK_KEY = "dig:v1:page-count:lock"
+PAGE_COUNT_DEFAULT_FROM = "202602"
+
 
 def _control_doc_sync_table() -> str:
     """Return the validated Oracle owner/table for durable CD sync requests."""

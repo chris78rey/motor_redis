@@ -20,6 +20,7 @@ from core import (
     TRAMITE_JOB_STATUS_PREFIX,
     _normalize_year_range,
 )
+from page_count import page_count_report, page_count_status
 
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
@@ -148,6 +149,46 @@ def api_filesystem_tramites_counts(
     except Exception as exc:
         logger.exception("Filesystem counts lookup failed")
         raise HTTPException(status_code=503, detail=f"No se pudo consultar los conteos: {exc}") from exc
+
+
+@app.get("/api/reportes/hojas")
+def api_page_count_report(
+    desde: str = Query(default="202602", pattern=r"^\d{6}$"),
+    hasta: str = Query(default="", pattern=r"^(|\d{6})$"),
+):
+    """Return total PDF pages grouped by FE_PLA_ANIOMES."""
+    try:
+        return page_count_report(desde, hasta or None)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Período inválido: {exc}") from exc
+
+
+@app.get("/api/reportes/hojas/status")
+def api_page_count_status():
+    return page_count_status()
+
+
+@app.post("/api/reportes/hojas/recalcular")
+def api_page_count_recalculate(
+    desde: str = Query(default="202602", pattern=r"^\d{6}$"),
+    hasta: str = Query(default="", pattern=r"^(|\d{6})$"),
+):
+    try:
+        # Validate before queueing so external consumers get a deterministic 400.
+        page_count_report(desde, hasta or None)
+        status = page_count_status()
+        if status.get("status") in {"loading", "counting"}:
+            return {"status": "already_loading"}
+        cache.enqueue({
+            "job": "calculate_page_counts",
+            "desde": desde,
+            "hasta": hasta or None,
+        })
+        return {"status": "queued", "desde": desde, "hasta": hasta or None}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Período inválido: {exc}") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"No se pudo encolar el conteo: {exc}") from exc
 
 
 @app.post("/api/cache/tramite/{tramite}")

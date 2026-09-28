@@ -1,0 +1,9 @@
+[Unit]
+Description=Contar hojas mensuales de PDFs de motor_redis
+After=motor-redis-api-data.service
+Requires=motor-redis-api-data.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/data_nuevo/motor_redis
+ExecStart=/data_nuevo/motor_redis/deploy/motor-redis-page-count.sh
