@@ -119,13 +119,20 @@ def handle(payload: dict) -> None:
 def main() -> None:
     logger.info("DIGITALIZACION cache worker started")
     priority_only = os.environ.get("DIGI_PRIORITY_ONLY", "0").lower() in {"1", "true", "yes"}
+    # True cuando la ultima vuelta proceso una solicitud durable de Control
+    # documental: probablemente hay mas en cola y no conviene esperar 5 s.
+    backlog = False
     while running:
         if priority_only:
             item = cache.client.brpop("dig:v1:jobs:priority", timeout=5)
         else:
-            item = cache.client.rpop("dig:v1:jobs:priority")
-            if not item:
-                item = cache.client.brpop("dig:v1:jobs", timeout=5)
+            # BRPOP revisa las claves en orden: primero la cola prioritaria.
+            # Antes se usaba RPOP, que devuelve solo el valor (no el par
+            # clave/valor); item[1] tomaba un caracter y la tarea se perdia.
+            item = cache.client.brpop(
+                ["dig:v1:jobs:priority", "dig:v1:jobs"],
+                timeout=1 if backlog else 5,
+            )
         if item:
             try:
                 handle(json.loads(item[1]))
@@ -133,8 +140,9 @@ def main() -> None:
                 logger.exception("Cache job failed; waiting for the next job")
                 time.sleep(1)
         try:
-            process_control_documental_pending()
+            backlog = bool(process_control_documental_pending())
         except Exception:
+            backlog = False
             logger.exception("Control documental Redis sync failed; waiting for the next job")
             time.sleep(1)
     logger.info("DIGITALIZACION cache worker stopped")
